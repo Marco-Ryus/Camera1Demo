@@ -12,6 +12,7 @@ import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.hardware.Camera;
+import android.media.Image;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -33,6 +34,7 @@ import java.util.List;
 import static java.lang.Math.abs;
 
 /*
+    要在Android中调用相机功能，一是调用系统相机，二是利用Camera与SurfaceView进行处理
     因为现在其实现在好像已经出到CameraX，还有Camera2，但因为Camera2的配置比较复杂而且对不同机型适配不同，
     这里介绍比较简单的Camera1，算是一个入门的操作，之后再去涉及其他camera都会容易些,但是因为Camera1的版本
     比较久远，很多方法会被AS认为需要淘汰更新，因此会被划上横线
@@ -48,13 +50,16 @@ public class MainActivity extends AppCompatActivity{
     private int viewWidth, viewHeight;      //mSurfaceView的宽和高
     //用于申请权限
     private static final int REQUEST_PERMISSIONS_CODE = 1;
-    private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE};
+    private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA};
     private int no;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         initView();
+//        ImageView viewById = findViewById(R.id.image_show);
+//        Bitmap bitmap = BitmapFactory.decodeResource(MainActivity.this.getResources(), R.mipmap.img02);
+//        viewById.setImageBitmap(bitmap);
     }
     //初始化
     private void initView() {
@@ -65,7 +70,10 @@ public class MainActivity extends AppCompatActivity{
         viewHeight = mSurfaceView.getHeight();
         mSurfaceHolder = mSurfaceView.getHolder();
         //不需要自己的缓冲区
-        mSurfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+        /*表明该Surface不包含原生数据，Surface用到的数据由其他对象提供，在Camera图像预览中就使用该类型的
+        Surface，有Camera负责提供给预览Surface数据，这样图像预览会比较流畅。如果设置这种类型则就不能调用
+        lockCanvas来获取Canvas对象了。需要注意的是，在高版本的Android SDK中，setType这个方法已经被depreciated了。*/
+        mSurfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);    //因为显示画面采用的是Camera回调画面，而不是Surface的信息
         //添加回调
         mSurfaceHolder.addCallback(new SurfaceHolder.Callback() {
             @Override
@@ -115,7 +123,7 @@ public class MainActivity extends AppCompatActivity{
         //开启
         camera = Camera.open();
         //设置旋转角度
-        camera.setDisplayOrientation(90);
+        camera.setDisplayOrientation(90);   //相对于预览画面而言，否则预览画面会是外的
         if (camera != null) {
             try {
                 Camera.Parameters parameters = camera.getParameters();
@@ -147,7 +155,7 @@ public class MainActivity extends AppCompatActivity{
             }
             //矩阵
             final Matrix matrix = new Matrix();
-            matrix.setRotate(90);
+            matrix.setRotate(90);   //用于旋转，否则最终拍照效果会旋转90度；
             final Bitmap bitmap = Bitmap.createBitmap(resource, 0, 0, resource.getWidth(),
                     resource.getHeight(), matrix, true);
             if (bitmap != null && iv_show != null && iv_show.getVisibility() == View.GONE) {
