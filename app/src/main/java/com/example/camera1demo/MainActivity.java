@@ -15,6 +15,7 @@ import android.hardware.Camera;
 import android.media.Image;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -24,10 +25,26 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.baidu.ocr.sdk.OCR;
+import com.baidu.ocr.sdk.OnResultListener;
+import com.baidu.ocr.sdk.exception.OCRError;
+import com.baidu.ocr.sdk.model.AccessToken;
+import com.baidu.ocr.sdk.model.GeneralParams;
+import com.baidu.ocr.sdk.model.GeneralResult;
+import com.baidu.ocr.sdk.model.Word;
+import com.baidu.ocr.sdk.model.WordSimple;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Calendar;
 import java.util.List;
 
@@ -50,24 +67,104 @@ public class MainActivity extends AppCompatActivity{
     private int viewWidth, viewHeight;      //mSurfaceView的宽和高
     //用于申请权限
     private static final int REQUEST_PERMISSIONS_CODE = 1;
-    private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA};
+    private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA, Manifest.permission.INTERNET,Manifest.permission.READ_EXTERNAL_STORAGE,Manifest.permission.WRITE_EXTERNAL_STORAGE};
     private int no;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         initView();
-//        ImageView viewById = findViewById(R.id.image_show);
-//        Bitmap bitmap = BitmapFactory.decodeResource(MainActivity.this.getResources(), R.mipmap.img02);
-//        viewById.setImageBitmap(bitmap);
+    }
+    private void Text(File file){
+        OCR.getInstance(MainActivity.this).initAccessTokenWithAkSk(new OnResultListener<AccessToken>() {
+            @Override
+            public void onResult(AccessToken result) { // 调用成功，返回AccessToken对象
+                String token = result.getAccessToken();
+                Log.e(TAG, "初始化Access成功");
+            }
+
+            @Override
+            public void onError(OCRError error) { // 调用失败，返回OCRError子类SDKError对象
+                Log.e(TAG, "初始化Access失败");
+            }
+        }, getApplicationContext(), "Bc1oC0mlhLuGjU3tCFW63DBv", "1zGwRnUhDh5F1MGMLj3BZUjmWCpRq78R");
+        //通用文字识别参数设置
+        GeneralParams param = new GeneralParams();
+        param.setDetectDirection(true);
+        Log.d(TAG, "运行到param");
+        param.setImageFile(file);
+        Log.d(TAG, "运行到setImage");
+        // 调用通用文字识别服务（含位置信息版）
+        OCR.getInstance(MainActivity.this).recognizeGeneral(param, new OnResultListener<GeneralResult>() {
+            @Override
+            public void onResult(GeneralResult result) {
+                StringBuilder sb = new StringBuilder();
+                for (WordSimple wordSimple : result.getWordList()) {
+                    // word包含位置
+                    Word word = (Word) wordSimple;
+                    sb.append(word.getWords());
+                    sb.append(word.getLocation().toString());
+                    sb.append("\n");
+                }
+                // 调用成功，返回GeneralResult对象，通过getJsonRes方法获取API返回字符串
+                String jsonRes = result.getJsonRes();
+                parseJSON(jsonRes);
+                Log.e(TAG, jsonRes);
+
+            }
+
+            @Override
+            public void onError(OCRError error) {
+                // 调用失败，返回OCRError对象
+            }
+        });
+    }
+
+    private void parseJSON(String jsonRes) {
+        try{
+            JSONObject jsonArray = new JSONObject(jsonRes);
+            String words = jsonArray.getString("words_result");
+            Log.e(TAG, "words: " + words);
+            JSONArray jsonArray1 = new JSONArray(words);
+            for (int i = 0; i < jsonArray1.length(); i++) {
+                JSONObject jsonObject = jsonArray1.getJSONObject(i);
+                String charactor = jsonObject.getString("words");
+                String loc = jsonObject.getString("location");
+                Log.e(TAG, "文字是" + charactor + "; 位置" + loc);
+
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    //在这里抽取了一个方法   可以封装到自己的工具类中...
+    public File getFile(Bitmap bitmap) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 50, baos);
+        File file = new File(Environment.getExternalStorageDirectory() + "/temp.jpg");
+        try {
+            file.createNewFile();
+            FileOutputStream fos = new FileOutputStream(file);
+            InputStream is = new ByteArrayInputStream(baos.toByteArray());
+            int x = 0;
+            byte[] b = new byte[1024 * 100];
+            while ((x = is.read(b)) != -1) {
+                fos.write(b, 0, x);
+            }
+            fos.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return file;
     }
     //初始化
     private void initView() {
         takePhoto = findViewById(R.id.take_photo);
         iv_show = findViewById(R.id.image_show);
         mSurfaceView = findViewById(R.id.photo_preview);
-        viewWidth = mSurfaceView.getWidth();
-        viewHeight = mSurfaceView.getHeight();
+//        viewWidth = mSurfaceView.getWidth();
+//        viewHeight = mSurfaceView.getHeight();
         mSurfaceHolder = mSurfaceView.getHolder();
         //不需要自己的缓冲区
         /*表明该Surface不包含原生数据，Surface用到的数据由其他对象提供，在Camera图像预览中就使用该类型的
@@ -135,6 +232,8 @@ public class MainActivity extends AppCompatActivity{
                 parameters.setPictureFormat(ImageFormat.JPEG);
                 //图片质量
                 parameters.set("jpeg-quality", 90);
+                //设置自动对焦
+                parameters.setFocusMode(Camera.Parameters.FLASH_MODE_AUTO);
                 //设置照片的大小
                 parameters.setPictureSize(viewWidth, viewHeight);
                 //通过SurfaceView显示预览
@@ -149,7 +248,9 @@ public class MainActivity extends AppCompatActivity{
     Camera.PictureCallback pictureCallback = new Camera.PictureCallback() {
         @Override
         public void onPictureTaken(byte[] data, Camera camera) {
-            final Bitmap resource = BitmapFactory.decodeByteArray(data, 0, data.length);
+            Log.d(TAG, "生成bitmap");
+            Bitmap resource = BitmapFactory.decodeByteArray(data, 0, data.length);
+            resource = resource.copy(Bitmap.Config.ARGB_4444, true);
             if (resource == null) {
                 Toast.makeText(MainActivity.this, "拍照失败", Toast.LENGTH_SHORT).show();
             }
@@ -160,10 +261,12 @@ public class MainActivity extends AppCompatActivity{
                     resource.getHeight(), matrix, true);
             if (bitmap != null && iv_show != null && iv_show.getVisibility() == View.GONE) {
                 camera.stopPreview();
+                Log.d(TAG, "生成成功");
                 iv_show.setVisibility(View.VISIBLE);
                 mSurfaceView.setVisibility(View.GONE);
                 Toast.makeText(MainActivity.this, "拍照成功", Toast.LENGTH_SHORT).show();
                 iv_show.setImageBitmap(bitmap);
+                Text(getFile(bitmap));
             }
         }
     };
