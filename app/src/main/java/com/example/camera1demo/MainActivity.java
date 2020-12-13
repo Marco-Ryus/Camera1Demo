@@ -1,6 +1,5 @@
 package com.example.camera1demo;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
@@ -10,14 +9,12 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
-import android.graphics.PixelFormat;
 import android.hardware.Camera;
-import android.media.Image;
+import android.nfc.Tag;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
-import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -35,18 +32,17 @@ import com.baidu.ocr.sdk.model.Word;
 import com.baidu.ocr.sdk.model.WordSimple;
 
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
+import org.opencv.android.BaseLoaderCallback;
+import org.opencv.android.LoaderCallbackInterface;
+import org.opencv.android.OpenCVLoader;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Calendar;
-import java.util.List;
 
 import static java.lang.Math.abs;
 
@@ -75,7 +71,11 @@ public class MainActivity extends AppCompatActivity{
         setContentView(R.layout.activity_main);
         initView();
     }
-    private void Text(File file){
+
+
+    //用于预测文字及其位置
+    private void Text(final File file){
+        //初始化ocr
         OCR.getInstance(MainActivity.this).initAccessTokenWithAkSk(new OnResultListener<AccessToken>() {
             @Override
             public void onResult(AccessToken result) { // 调用成功，返回AccessToken对象
@@ -108,9 +108,15 @@ public class MainActivity extends AppCompatActivity{
                 }
                 // 调用成功，返回GeneralResult对象，通过getJsonRes方法获取API返回字符串
                 String jsonRes = result.getJsonRes();
-                parseJSON(jsonRes);
+                String[][] res = parseJSON(jsonRes);//处理返回的json，返回文字的位置信息
+                Log.d(TAG, "res size: " + res.length);
                 Log.e(TAG, jsonRes);
-
+                DataPro dataPro = new DataPro();
+                dataPro.setData(res).setFile(file);
+                String finalRes = dataPro.processData();
+                if(finalRes!=null){
+                    Log.w(TAG, "识别的最终结果: " + finalRes);
+                }
             }
 
             @Override
@@ -120,22 +126,37 @@ public class MainActivity extends AppCompatActivity{
         });
     }
 
-    private void parseJSON(String jsonRes) {
+    private String[][] parseJSON(String jsonRes) {
+        String[][] res = null;
         try{
             JSONObject jsonArray = new JSONObject(jsonRes);
             String words = jsonArray.getString("words_result");
             Log.e(TAG, "words: " + words);
             JSONArray jsonArray1 = new JSONArray(words);
+            //使用一个数组存放位置信息
+            res = new String[jsonArray1.length()][5];
             for (int i = 0; i < jsonArray1.length(); i++) {
                 JSONObject jsonObject = jsonArray1.getJSONObject(i);
                 String charactor = jsonObject.getString("words");
                 String loc = jsonObject.getString("location");
-                Log.e(TAG, "文字是" + charactor + "; 位置" + loc);
-
+                Log.e(TAG, "文字是 ：" + charactor + "; 位置 ：" + loc);
+                //再具体获取location
+                JSONObject location = new JSONObject(loc);
+                String top = location.getString("top");
+                String left = location.getString("left");
+                String width = location.getString("width");
+                String height = location.getString("height");
+                Log.d(TAG, "top: " + top + "; left:" + left + "; width: " + width + "height:" + height);
+                res[i][0] = top;
+                res[i][1] = left;
+                res[i][2] = width;
+                res[i][3] = height;
+                res[i][4]= charactor;
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
+        return res;
     }
 
     //在这里抽取了一个方法   可以封装到自己的工具类中...
@@ -271,6 +292,24 @@ public class MainActivity extends AppCompatActivity{
         }
     };
 
+    //动态加载opencv库
+    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
+        @Override
+        public void onManagerConnected(int status) {
+            switch (status) {
+                case LoaderCallbackInterface.SUCCESS: {
+                    Log.i(TAG, "OpenCV loaded successfully");
+//                    mOpenCvCameraView.enableView();
+//                    mOpenCvCameraView.setOnTouchListener(ColorBlobDetectionActivity.this);
+                }
+                break;
+                default: {
+                    super.onManagerConnected(status);
+                }
+                break;
+            }
+        }
+    };
 
     @Override
     protected void onResume() {
@@ -279,6 +318,14 @@ public class MainActivity extends AppCompatActivity{
         if (!isRequiredPermissionsGranted() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             //以下是AppCompat的一个方法，输入需要申请的权限的字符数组，会自动调用函数弹窗询问用户是否允许权限使用；
             requestPermissions(REQUIRED_PERMISSIONS, REQUEST_PERMISSIONS_CODE);
+        }
+        //动态加载opencv库
+        if (!OpenCVLoader.initDebug()) {
+            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization");
+            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_0_0, this, mLoaderCallback);
+        } else {
+            Log.d(TAG, "OpenCV library found inside package. Using it!");
+            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
         }
     }
 
