@@ -4,6 +4,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import android.Manifest;
+import android.app.ProgressDialog;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -59,8 +61,9 @@ public class MainActivity extends AppCompatActivity{
     private SurfaceView mSurfaceView;
     private SurfaceHolder mSurfaceHolder;
     private Camera camera;
-    private ImageView iv_show;
-    private int viewWidth, viewHeight;      //mSurfaceView的宽和高
+    private Bundle bundle;
+    private ProgressDialog progressDialog;  //用于匹配图片时提醒用户等待
+    private int viewWidth, viewHeight;
     //用于申请权限
     private static final int REQUEST_PERMISSIONS_CODE = 1;
     private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA, Manifest.permission.INTERNET,Manifest.permission.READ_EXTERNAL_STORAGE,Manifest.permission.WRITE_EXTERNAL_STORAGE};
@@ -68,7 +71,17 @@ public class MainActivity extends AppCompatActivity{
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // 动态权限检查
+        if (!isRequiredPermissionsGranted() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            //以下是AppCompat的一个方法，输入需要申请的权限的字符数组，会自动调用函数弹窗询问用户是否允许权限使用；
+            requestPermissions(REQUIRED_PERMISSIONS, REQUEST_PERMISSIONS_CODE);
+        }
         setContentView(R.layout.activity_main);
+        bundle = new Bundle();
+        progressDialog = new ProgressDialog(MainActivity.this);
+        progressDialog.setMessage("Loading...");
+        progressDialog.setTitle("正在识别，请稍等......");
+        progressDialog.setCancelable(true);
         initView();
     }
 
@@ -80,28 +93,29 @@ public class MainActivity extends AppCompatActivity{
             @Override
             public void onResult(AccessToken result) { // 调用成功，返回AccessToken对象
                 String token = result.getAccessToken();
-                Log.e(TAG, "初始化Access成功");
+//                Log.e(TAG, "初始化Access成功");
             }
 
             @Override
             public void onError(OCRError error) { // 调用失败，返回OCRError子类SDKError对象
-                Log.e(TAG, "初始化Access失败");
+//                Log.e(TAG, "初始化Access失败");
             }
         }, getApplicationContext(), "Bc1oC0mlhLuGjU3tCFW63DBv", "1zGwRnUhDh5F1MGMLj3BZUjmWCpRq78R");
         //通用文字识别参数设置
         GeneralParams param = new GeneralParams();
         param.setDetectDirection(true);
-        Log.d(TAG, "运行到param");
+//        Log.d(TAG, "运行到param");
         param.setImageFile(file);
-        Log.d(TAG, "运行到setImage");
+//        Log.d(TAG, "运行到setImage");
         // 调用通用文字识别服务（含位置信息版）
         OCR.getInstance(MainActivity.this).recognizeGeneral(param, new OnResultListener<GeneralResult>() {
             @Override
             public void onResult(GeneralResult result) {
                 StringBuilder sb = new StringBuilder();
+                Word word;
                 for (WordSimple wordSimple : result.getWordList()) {
                     // word包含位置
-                    Word word = (Word) wordSimple;
+                    word = (Word) wordSimple;
                     sb.append(word.getWords());
                     sb.append(word.getLocation().toString());
                     sb.append("\n");
@@ -109,14 +123,26 @@ public class MainActivity extends AppCompatActivity{
                 // 调用成功，返回GeneralResult对象，通过getJsonRes方法获取API返回字符串
                 String jsonRes = result.getJsonRes();
                 String[][] res = parseJSON(jsonRes);//处理返回的json，返回文字的位置信息
-                Log.d(TAG, "res size: " + res.length);
-                Log.e(TAG, jsonRes);
+//                Log.d(TAG, "res size: " + res.length);
+//                Log.e(TAG, jsonRes);
                 DataPro dataPro = new DataPro();
                 dataPro.setData(res).setFile(file);
-                String finalRes = dataPro.processData();
+                String[] finalRes = dataPro.processData();
+//                Log.e(TAG, "finaleRes: x--" + finalRes[0] + "y--:" + finalRes[1]);
                 if(finalRes!=null){
-                    Log.w(TAG, "识别的最终结果: " + finalRes);
+//                    Log.w(TAG, "识别的最终结果: " + finalRes[4]);
+                    Toast.makeText(MainActivity.this, "识别结果：" + finalRes[4], Toast.LENGTH_LONG).show();
+                    bundle.putString("result",finalRes[4]);
+                    bundle.putStringArray("location", finalRes);
+                }else{
+//                    Log.w(TAG, "没有识别结果");
+                    Toast.makeText(MainActivity.this, "未检测到指尖", Toast.LENGTH_LONG).show();
+                    bundle.putString("result",null);
                 }
+                Intent intent = new Intent(MainActivity.this, ImageShow.class);
+                intent.putExtras(bundle);
+                progressDialog.dismiss();
+                startActivity(intent);
             }
 
             @Override
@@ -131,22 +157,23 @@ public class MainActivity extends AppCompatActivity{
         try{
             JSONObject jsonArray = new JSONObject(jsonRes);
             String words = jsonArray.getString("words_result");
-            Log.e(TAG, "words: " + words);
+//            Log.e(TAG, "words: " + words);
             JSONArray jsonArray1 = new JSONArray(words);
             //使用一个数组存放位置信息
             res = new String[jsonArray1.length()][5];
+            String top, left, width, height;
             for (int i = 0; i < jsonArray1.length(); i++) {
                 JSONObject jsonObject = jsonArray1.getJSONObject(i);
                 String charactor = jsonObject.getString("words");
                 String loc = jsonObject.getString("location");
-                Log.e(TAG, "文字是 ：" + charactor + "; 位置 ：" + loc);
+//                Log.e(TAG, "文字是 ：" + charactor + "; 位置 ：" + loc);
                 //再具体获取location
                 JSONObject location = new JSONObject(loc);
-                String top = location.getString("top");
-                String left = location.getString("left");
-                String width = location.getString("width");
-                String height = location.getString("height");
-                Log.d(TAG, "top: " + top + "; left:" + left + "; width: " + width + "height:" + height);
+                top = location.getString("top");
+                left = location.getString("left");
+                width = location.getString("width");
+                height = location.getString("height");
+//                Log.d(TAG, "top: " + top + "; left:" + left + "; width: " + width + "height:" + height);
                 res[i][0] = top;
                 res[i][1] = left;
                 res[i][2] = width;
@@ -182,7 +209,7 @@ public class MainActivity extends AppCompatActivity{
     //初始化
     private void initView() {
         takePhoto = findViewById(R.id.take_photo);
-        iv_show = findViewById(R.id.image_show);
+//        iv_show = findViewById(R.id.image_show);
         mSurfaceView = findViewById(R.id.photo_preview);
 //        viewWidth = mSurfaceView.getWidth();
 //        viewHeight = mSurfaceView.getHeight();
@@ -198,7 +225,7 @@ public class MainActivity extends AppCompatActivity{
             public void surfaceCreated(SurfaceHolder holder) {
                 //初始化Camera
                 initCamera();
-                Log.d(TAG, "SurfaceView已生成");
+//                Log.d(TAG, "SurfaceView已生成");
             }
 
             @Override
@@ -209,7 +236,7 @@ public class MainActivity extends AppCompatActivity{
             @Override
             public void surfaceDestroyed(SurfaceHolder holder) {
                 //销毁，释放资源
-                Log.d(TAG, "SurfaceView已被销毁");
+//                Log.d(TAG, "SurfaceView已被销毁");
                 if (camera != null) {
                     camera.stopPreview();
                     camera.setPreviewCallback(null);
@@ -225,7 +252,7 @@ public class MainActivity extends AppCompatActivity{
                 camera.takePicture(new Camera.ShutterCallback() {
                     @Override
                     public void onShutter() {       //快门按下一瞬间会发生的操作
-
+                        progressDialog.show();
                     }
                 }, new Camera.PictureCallback() {
                     @Override
@@ -233,7 +260,7 @@ public class MainActivity extends AppCompatActivity{
 
                     }
                 },pictureCallback);
-                takePhoto.setVisibility(View.GONE);
+//                takePhoto.setVisibility(View.GONE);
             }
         });
     }
@@ -254,7 +281,7 @@ public class MainActivity extends AppCompatActivity{
                 //图片质量
                 parameters.set("jpeg-quality", 90);
                 //设置自动对焦
-                parameters.setFocusMode(Camera.Parameters.FLASH_MODE_AUTO);
+                parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
                 //设置照片的大小
                 parameters.setPictureSize(viewWidth, viewHeight);
                 //通过SurfaceView显示预览
@@ -269,25 +296,24 @@ public class MainActivity extends AppCompatActivity{
     Camera.PictureCallback pictureCallback = new Camera.PictureCallback() {
         @Override
         public void onPictureTaken(byte[] data, Camera camera) {
-            Log.d(TAG, "生成bitmap");
+//            Log.d(TAG, "生成bitmap");
             Bitmap resource = BitmapFactory.decodeByteArray(data, 0, data.length);
             resource = resource.copy(Bitmap.Config.ARGB_4444, true);
             if (resource == null) {
-                Toast.makeText(MainActivity.this, "拍照失败", Toast.LENGTH_SHORT).show();
+//                Toast.makeText(MainActivity.this, "拍照失败", Toast.LENGTH_SHORT).show();
             }
             //矩阵
             final Matrix matrix = new Matrix();
             matrix.setRotate(90);   //用于旋转，否则最终拍照效果会旋转90度；
             final Bitmap bitmap = Bitmap.createBitmap(resource, 0, 0, resource.getWidth(),
                     resource.getHeight(), matrix, true);
-            if (bitmap != null && iv_show != null && iv_show.getVisibility() == View.GONE) {
+            resource.recycle();
+            if (bitmap != null) {
                 camera.stopPreview();
-                Log.d(TAG, "生成成功");
-                iv_show.setVisibility(View.VISIBLE);
-                mSurfaceView.setVisibility(View.GONE);
-                Toast.makeText(MainActivity.this, "拍照成功", Toast.LENGTH_SHORT).show();
-                iv_show.setImageBitmap(bitmap);
+//                Log.d(TAG, "生成成功");
+//                Toast.makeText(MainActivity.this, "拍照成功", Toast.LENGTH_SHORT).show();
                 Text(getFile(bitmap));
+                bitmap.recycle();
             }
         }
     };
@@ -298,7 +324,7 @@ public class MainActivity extends AppCompatActivity{
         public void onManagerConnected(int status) {
             switch (status) {
                 case LoaderCallbackInterface.SUCCESS: {
-                    Log.i(TAG, "OpenCV loaded successfully");
+//                    Log.i(TAG, "OpenCV loaded successfully");
 //                    mOpenCvCameraView.enableView();
 //                    mOpenCvCameraView.setOnTouchListener(ColorBlobDetectionActivity.this);
                 }
@@ -314,17 +340,12 @@ public class MainActivity extends AppCompatActivity{
     @Override
     protected void onResume() {
         super.onResume();
-        // 动态权限检查
-        if (!isRequiredPermissionsGranted() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            //以下是AppCompat的一个方法，输入需要申请的权限的字符数组，会自动调用函数弹窗询问用户是否允许权限使用；
-            requestPermissions(REQUIRED_PERMISSIONS, REQUEST_PERMISSIONS_CODE);
-        }
         //动态加载opencv库
         if (!OpenCVLoader.initDebug()) {
-            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization");
+//            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization");
             OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_0_0, this, mLoaderCallback);
         } else {
-            Log.d(TAG, "OpenCV library found inside package. Using it!");
+//            Log.d(TAG, "OpenCV library found inside package. Using it!");
             mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
         }
     }
@@ -342,5 +363,4 @@ public class MainActivity extends AppCompatActivity{
         }
         return true;
     }
-
 }
