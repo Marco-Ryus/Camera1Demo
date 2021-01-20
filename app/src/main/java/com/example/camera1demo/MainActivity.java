@@ -84,6 +84,7 @@ public class MainActivity extends AppCompatActivity{
         progressDialog.setCancelable(true);
         initView();
     }
+    //测试分支
 
 
     //用于预测文字及其位置
