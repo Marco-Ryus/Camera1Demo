@@ -45,7 +45,7 @@ public class DataPro {
     public String[] processData() {
         Bitmap bitmap = BitmapFactory.decodeFile(file.toString());
         double[] point = newFingerScan(bitmap);
-        if (point != null) {
+        if (point.length > 0) {
             int res = prePocessText(point, data);
             if (res != -1) {
                 return data[res];
@@ -53,7 +53,7 @@ public class DataPro {
         }
         return null;
     }
-
+    //  测试回滚
     private int prePocessText(double[] point, String[][] data) {
         double px = point[0], py = point[1];
         for (int i = 0; i < data.length; i++) {
@@ -141,7 +141,7 @@ public class DataPro {
         return cnt;
     }
 
-    public double[] newFingerScan(Bitmap bitmap) {
+    private double[] newFingerScan(Bitmap bitmap) {
         Mat mat_src = new Mat(bitmap.getHeight(), bitmap.getWidth(), CvType.CV_8UC4);//获取原图(8位无符号的四通道，带透明的RGB图像)
         Utils.bitmapToMat(bitmap, mat_src);//将bitmap转化成mat_src
         Mat mat_gray = new Mat(mat_src.cols(), mat_src.rows(), CvType.CV_8UC1);//灰度图，单通道
@@ -271,7 +271,7 @@ public class DataPro {
             return result;
         } else {
             Log.e(TAG, "未找到指尖");
-            return null;
+            return new double[0];
         }
 
     }

@@ -84,73 +84,65 @@ public class MainActivity extends AppCompatActivity{
         progressDialog.setCancelable(true);
         initView();
     }
-    //测试分支
+
 
 
     //用于预测文字及其位置
     private void Text(final File file){
-        //初始化ocr
-        OCR.getInstance(MainActivity.this).initAccessTokenWithAkSk(new OnResultListener<AccessToken>() {
-            @Override
-            public void onResult(AccessToken result) { // 调用成功，返回AccessToken对象
-                String token = result.getAccessToken();
-//                Log.e(TAG, "初始化Access成功");
-            }
-
-            @Override
-            public void onError(OCRError error) { // 调用失败，返回OCRError子类SDKError对象
-//                Log.e(TAG, "初始化Access失败");
-            }
-        }, getApplicationContext(), "Bc1oC0mlhLuGjU3tCFW63DBv", "1zGwRnUhDh5F1MGMLj3BZUjmWCpRq78R");
-        //通用文字识别参数设置
-        GeneralParams param = new GeneralParams();
-        param.setDetectDirection(true);
+        final double[] point = DataUtils.newFingerScan(BitmapFactory.decodeFile(file.toString()));
+        if (point.length > 0) {
+            GeneralParams param = new GeneralParams();
+            param.setDetectDirection(true);
 //        Log.d(TAG, "运行到param");
-        param.setImageFile(file);
+            param.setImageFile(file);
 //        Log.d(TAG, "运行到setImage");
-        // 调用通用文字识别服务（含位置信息版）
-        OCR.getInstance(MainActivity.this).recognizeGeneral(param, new OnResultListener<GeneralResult>() {
-            @Override
-            public void onResult(GeneralResult result) {
-                StringBuilder sb = new StringBuilder();
-                Word word;
-                for (WordSimple wordSimple : result.getWordList()) {
-                    // word包含位置
-                    word = (Word) wordSimple;
-                    sb.append(word.getWords());
-                    sb.append(word.getLocation().toString());
-                    sb.append("\n");
-                }
-                // 调用成功，返回GeneralResult对象，通过getJsonRes方法获取API返回字符串
-                String jsonRes = result.getJsonRes();
-                String[][] res = parseJSON(jsonRes);//处理返回的json，返回文字的位置信息
-//                Log.d(TAG, "res size: " + res.length);
-//                Log.e(TAG, jsonRes);
-                DataPro dataPro = new DataPro();
-                dataPro.setData(res).setFile(file);
-                String[] finalRes = dataPro.processData();
-//                Log.e(TAG, "finaleRes: x--" + finalRes[0] + "y--:" + finalRes[1]);
-                if(finalRes!=null){
-//                    Log.w(TAG, "识别的最终结果: " + finalRes[4]);
-                    Toast.makeText(MainActivity.this, "识别结果：" + finalRes[4], Toast.LENGTH_LONG).show();
-                    bundle.putString("result",finalRes[4]);
-                    bundle.putStringArray("location", finalRes);
-                }else{
-//                    Log.w(TAG, "没有识别结果");
-                    Toast.makeText(MainActivity.this, "未检测到指尖", Toast.LENGTH_LONG).show();
-                    bundle.putString("result",null);
-                }
-                Intent intent = new Intent(MainActivity.this, ImageShow.class);
-                intent.putExtras(bundle);
-                progressDialog.dismiss();
-                startActivity(intent);
-            }
-
-            @Override
-            public void onError(OCRError error) {
-                // 调用失败，返回OCRError对象
-            }
-        });
+            // 调用通用文字识别服务（含位置信息版）
+            OCR.getInstance(MainActivity.this).recognizeGeneral(param, new OnResultListener<GeneralResult>() {
+                        @Override
+                        public void onResult(GeneralResult result) {
+                            StringBuilder sb = new StringBuilder();
+                            Word word;
+                            for (WordSimple wordSimple : result.getWordList()) {
+                                // word包含位置
+                                word = (Word) wordSimple;
+                                sb.append(word.getWords());
+                                sb.append(word.getLocation().toString());
+                                sb.append("\n");
+                            }
+                            // 调用成功，返回GeneralResult对象，通过getJsonRes方法获取API返回字符串
+                            String jsonRes = result.getJsonRes();
+                            String[][] res = parseJSON(jsonRes);//处理返回的json，返回文字的位置信息
+//                            DataPro dataPro = new DataPro();
+//                            dataPro.setData(res).setFile(file);
+//                            String[] finalRes = dataPro.processData();
+                            int i = DataUtils.prePocessText(point, res);
+                            if(i!=-1){
+                                String[] finalRes = res[i];
+                                Toast.makeText(MainActivity.this, "识别结果：" + finalRes[4], Toast.LENGTH_LONG).show();
+                                bundle.putString("result", finalRes[4]);
+                                bundle.putStringArray("location", finalRes);
+                            } else {
+                                Toast.makeText(MainActivity.this, "无匹配结果", Toast.LENGTH_LONG).show();
+                                bundle.putString("result", null);
+                            }
+                            Intent intent = new Intent(MainActivity.this, ImageShow.class);
+                            intent.putExtras(bundle);
+                            progressDialog.dismiss();
+                            startActivity(intent);
+                        }
+                    @Override
+                    public void onError(OCRError error) {
+                        // 调用失败，返回OCRError对象
+                    }
+            });
+        } else {
+            //没有找到指尖不进行文字识别
+            bundle.putString("result", null);
+            Intent intent = new Intent(MainActivity.this, ImageShow.class);
+            intent.putExtras(bundle);
+            progressDialog.dismiss();
+            startActivity(intent);
+        }
     }
 
     private String[][] parseJSON(String jsonRes) {
@@ -187,28 +179,21 @@ public class MainActivity extends AppCompatActivity{
         return res;
     }
 
-    //在这里抽取了一个方法   可以封装到自己的工具类中...
-    public File getFile(Bitmap bitmap) {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 50, baos);
-        File file = new File(Environment.getExternalStorageDirectory() + "/temp.jpg");
-        try {
-            file.createNewFile();
-            FileOutputStream fos = new FileOutputStream(file);
-            InputStream is = new ByteArrayInputStream(baos.toByteArray());
-            int x = 0;
-            byte[] b = new byte[1024 * 100];
-            while ((x = is.read(b)) != -1) {
-                fos.write(b, 0, x);
-            }
-            fos.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return file;
-    }
     //初始化
     private void initView() {
+        //初始化ocr
+        OCR.getInstance(MainActivity.this).initAccessTokenWithAkSk(new OnResultListener<AccessToken>() {
+            @Override
+            public void onResult(AccessToken result) { // 调用成功，返回AccessToken对象
+                String token = result.getAccessToken();
+//                Log.e(TAG, "初始化Access成功");
+            }
+
+            @Override
+            public void onError(OCRError error) { // 调用失败，返回OCRError子类SDKError对象
+//                Log.e(TAG, "初始化Access失败");
+            }
+        }, getApplicationContext(), "Bc1oC0mlhLuGjU3tCFW63DBv", "1zGwRnUhDh5F1MGMLj3BZUjmWCpRq78R");
         takePhoto = findViewById(R.id.take_photo);
 //        iv_show = findViewById(R.id.image_show);
         mSurfaceView = findViewById(R.id.photo_preview);
@@ -313,7 +298,7 @@ public class MainActivity extends AppCompatActivity{
                 camera.stopPreview();
 //                Log.d(TAG, "生成成功");
 //                Toast.makeText(MainActivity.this, "拍照成功", Toast.LENGTH_SHORT).show();
-                Text(getFile(bitmap));
+                Text(DataUtils.getFile(bitmap));
                 bitmap.recycle();
             }
         }
