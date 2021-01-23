@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">Camera1Demo</string>
+    <string name="app_name">指尖文字识别</string>
     <string name="take_photo">拍照</string>
 </resources>
