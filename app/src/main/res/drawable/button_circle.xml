@@ -8,6 +8,6 @@
         android:topRightRadius="10dp"/>
     <gradient
         android:endColor="#DD888888"
-        android:startColor="#DD333333"
+        android:startColor="@color/colorSensingBlue"
         android:angle="45"/>
 </shape>

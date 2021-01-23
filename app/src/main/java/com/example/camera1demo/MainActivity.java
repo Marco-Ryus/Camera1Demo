@@ -12,16 +12,12 @@ import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.hardware.Camera;
-import android.nfc.Tag;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
-import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
-import android.widget.ImageView;
 import android.widget.Toast;
 
 import com.baidu.ocr.sdk.OCR;
@@ -32,6 +28,11 @@ import com.baidu.ocr.sdk.model.GeneralParams;
 import com.baidu.ocr.sdk.model.GeneralResult;
 import com.baidu.ocr.sdk.model.Word;
 import com.baidu.ocr.sdk.model.WordSimple;
+import com.baidu.tts.client.SpeechError;
+import com.baidu.tts.client.SpeechSynthesizer;
+import com.baidu.tts.client.SpeechSynthesizerListener;
+import com.baidu.tts.client.TtsMode;
+import com.example.camera1demo.util.DataUtils;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -39,12 +40,8 @@ import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 
 import static java.lang.Math.abs;
 
@@ -64,10 +61,20 @@ public class MainActivity extends AppCompatActivity{
     private Bundle bundle;
     private ProgressDialog progressDialog;  //用于匹配图片时提醒用户等待
     private int viewWidth, viewHeight;
+    public static SpeechSynthesizer mSpeechSynthesizer = SpeechSynthesizer.getInstance();
     //用于申请权限
     private static final int REQUEST_PERMISSIONS_CODE = 1;
-    private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA, Manifest.permission.INTERNET,Manifest.permission.READ_EXTERNAL_STORAGE,Manifest.permission.WRITE_EXTERNAL_STORAGE};
-    private int no;
+    private static final String[] REQUIRED_PERMISSIONS = {
+                Manifest.permission.CAMERA,
+                Manifest.permission.INTERNET,
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                Manifest.permission.ACCESS_NETWORK_STATE,
+                Manifest.permission.MODIFY_AUDIO_SETTINGS,
+                Manifest.permission.ACCESS_WIFI_STATE,
+                Manifest.permission.CHANGE_WIFI_STATE
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -82,9 +89,75 @@ public class MainActivity extends AppCompatActivity{
         progressDialog.setMessage("Loading...");
         progressDialog.setTitle("正在识别，请稍等......");
         progressDialog.setCancelable(true);
+        initBaidu();
         initView();
     }
 
+    private void initBaidu() {
+        //初始化ocr
+        OCR.getInstance(MainActivity.this).initAccessTokenWithAkSk(new OnResultListener<AccessToken>() {
+            @Override
+            public void onResult(AccessToken result) { // 调用成功，返回AccessToken对象
+                String token = result.getAccessToken();
+//                Log.e(TAG, "初始化Access成功");
+            }
+
+            @Override
+            public void onError(OCRError error) { // 调用失败，返回OCRError子类SDKError对象
+//                Log.e(TAG, "初始化Access失败");
+            }
+        }, getApplicationContext(), "Bc1oC0mlhLuGjU3tCFW63DBv", "1zGwRnUhDh5F1MGMLj3BZUjmWCpRq78R");
+
+        //初始化百度语音合成
+        mSpeechSynthesizer.setContext(this); // this 是Context的之类，如Activity
+        mSpeechSynthesizer.setSpeechSynthesizerListener(new SpeechSynthesizerListener() {
+            @Override
+            public void onSynthesizeStart(String s) {
+
+            }
+
+            @Override
+            public void onSynthesizeDataArrived(String s, byte[] bytes, int i, int i1) {
+
+            }
+
+            @Override
+            public void onSynthesizeFinish(String s) {
+
+            }
+
+            @Override
+            public void onSpeechStart(String s) {
+
+            }
+
+            @Override
+            public void onSpeechProgressChanged(String s, int i) {
+
+            }
+
+            @Override
+            public void onSpeechFinish(String s) {
+
+            }
+
+            @Override
+            public void onError(String s, SpeechError speechError) {
+
+            }
+        });
+        mSpeechSynthesizer.setAppId("23579832"/*这里只是为了让Demo运行使用的APPID,请替换成自己的id。*/);
+        mSpeechSynthesizer.setApiKey("7fCouzZzRgfvszB1aDXDz2ly", "KEYrjowmQFvv5RWbhXNYzc5bh8E3uL5m"/*这里只是为了让Demo正常运行使用APIKey,请替换成自己的APIKey*/);
+        mSpeechSynthesizer.initTts(TtsMode.ONLINE);
+        // 设置在线发声音人： 0 普通女声（默认） 1 普通男声  3 情感男声<度逍遥> 4 情感儿童声<度丫丫>
+        mSpeechSynthesizer.setParam(SpeechSynthesizer.PARAM_SPEAKER, "1");
+        // 设置合成的音量，0-15 ，默认 5
+        mSpeechSynthesizer.setParam(SpeechSynthesizer.PARAM_VOLUME, "15");
+        // 设置合成的语速，0-15 ，默认 5
+        mSpeechSynthesizer.setParam(SpeechSynthesizer.PARAM_SPEED, "5");
+        // 设置合成的语调，0-15 ，默认 5
+        mSpeechSynthesizer.setParam(SpeechSynthesizer.PARAM_PITCH, "5");
+    }
 
 
     //用于预测文字及其位置
@@ -181,19 +254,6 @@ public class MainActivity extends AppCompatActivity{
 
     //初始化
     private void initView() {
-        //初始化ocr
-        OCR.getInstance(MainActivity.this).initAccessTokenWithAkSk(new OnResultListener<AccessToken>() {
-            @Override
-            public void onResult(AccessToken result) { // 调用成功，返回AccessToken对象
-                String token = result.getAccessToken();
-//                Log.e(TAG, "初始化Access成功");
-            }
-
-            @Override
-            public void onError(OCRError error) { // 调用失败，返回OCRError子类SDKError对象
-//                Log.e(TAG, "初始化Access失败");
-            }
-        }, getApplicationContext(), "Bc1oC0mlhLuGjU3tCFW63DBv", "1zGwRnUhDh5F1MGMLj3BZUjmWCpRq78R");
         takePhoto = findViewById(R.id.take_photo);
 //        iv_show = findViewById(R.id.image_show);
         mSurfaceView = findViewById(R.id.photo_preview);

@@ -1,8 +1,7 @@
-package com.example.camera1demo;
+package com.example.camera1demo.util;
 
 import android.graphics.Bitmap;
 import android.os.Environment;
-import android.util.Log;
 
 import org.opencv.android.Utils;
 import org.opencv.core.Core;
@@ -39,8 +38,8 @@ import static org.opencv.imgproc.Imgproc.moments;
  * @Description : 将多种静态方法做封装处理，提高代码运行效率
  */
 public class DataUtils {
-    private static Logger logger = Logger.getLogger("DataUtils");
-    private static int tmp = 0;
+    private static final Logger logger = Logger.getLogger("DataUtils");
+    private static final int tmp = 0;
 
     //封装方法将bitmap转化为file
     public static File getFile(Bitmap bitmap) {
@@ -51,7 +50,7 @@ public class DataUtils {
             file.createNewFile();
             FileOutputStream fos = new FileOutputStream(file);
             InputStream is = new ByteArrayInputStream(baos.toByteArray());
-            int x = 0;
+            int x;
             byte[] b = new byte[1024 * 100];
             while ((x = is.read(b)) != -1) {
                 fos.write(b, 0, x);
@@ -82,8 +81,6 @@ public class DataUtils {
         // 中值滤波，去除椒盐噪声
         Imgproc.medianBlur(frame, frame, 5);
         Imgproc.cvtColor(frame, frameHSV, Imgproc.COLOR_RGB2HSV, 3);//把frame的颜色空间转换后复制到frameHSV
-        Mat dstTemp1 = new Mat(mat_src.cols(), mat_src.rows(), CvType.CV_8UC1);//两个单通道图像
-        Mat dstTemp2 = new Mat(mat_src.cols(), mat_src.rows(), CvType.CV_8UC1);
         // 对HSV空间进行量化，得到二值图像，亮的部分为手的形状
         Core.inRange(frameHSV, new Scalar(5, 10, 20), new Scalar(20, 170, 256), mask);//比较三个通道中的元素是否在相应的区间类，不在的画的则改成255，即符合肤色的就转换为黑色
 
@@ -96,7 +93,7 @@ public class DataUtils {
 
         frame.copyTo(dst, mask);
 
-        Vector<MatOfPoint> contours = new Vector<MatOfPoint>();
+        Vector<MatOfPoint> contours = new Vector<>();
 
         MatOfInt4 hierarchy = new MatOfInt4();
 
@@ -107,7 +104,7 @@ public class DataUtils {
         Point center = new Point(moment.m10 / moment.m00, moment.m01 / moment.m00);//计算图形重心；m00为零阶矩阵，m10为一阶矩阵，计算结果为图像重心
         circle(mat_src, center, 8, new Scalar(0, 0, 255), -1);//绘制图像重心
         //图像显示
-        Vector<MatOfPoint2f> newcont = new Vector<MatOfPoint2f>();
+        Vector<MatOfPoint2f> newcont = new Vector<>();
         for (MatOfPoint point : contours) {
             MatOfPoint2f newPoint = new MatOfPoint2f(point.toArray());
             newcont.add(newPoint);
@@ -133,7 +130,7 @@ public class DataUtils {
         }
 //        找出最大轮廓
         int index = 0;
-        double area = 0, maxArea = 0;
+        double area, maxArea = 0;
         for (int i = 0; i < polyedges.size(); i++) {
             area = Imgproc.contourArea(polyedges.get(i));
             if (area > maxArea) {
@@ -144,8 +141,8 @@ public class DataUtils {
         MatOfPoint couPoint = polyedges.get(index);//确定最大轮廓
         Point[] a = couPoint.toArray();
 
-        Vector<Point> fingerTips = new Vector<Point>();     //用于储存指尖点
-        Point tmp = new Point();
+        Vector<Point> fingerTips = new Vector<>();     //用于储存指尖点
+        Point tmp;
         double max = 0;
         int notice = 0;
         for (int i = 0; i < a.length; i++) {
@@ -158,14 +155,12 @@ public class DataUtils {
             // 挑选可能为指尖的点
             if (dist != max) {
                 max = 0;
-                boolean flag = false;
                 // 低于手心的点不算
                 if (center.y < a[notice].y)
                     continue;
                 // 离得太近的不算
                 for (int j = 0; j < fingerTips.size(); j++) {
                     if (abs(a[notice].x - fingerTips.get(j).x) < 40) {
-                        flag = true;
                         break;
                     }
                 }
@@ -175,7 +170,7 @@ public class DataUtils {
 //                line(dst, center, a[notice], new Scalar(0, 255, 255), 5);
             }
         }
-        double dist1 = 0;
+        double dist1;
 //        Log.v(TAG,fingerTips.get(0).toString());
 
         if (fingerTips.size() > 0 && !fingerTips.get(0).toString().isEmpty()) {
@@ -190,8 +185,7 @@ public class DataUtils {
             }
             circle(mat_src, fingerTips.get(notice1), 10, new Scalar(255, 0, 0), -1);//绘制最终粉色点为指尖
             logger.info(fingerTips.get(notice1).x + "指尖坐标y: " + fingerTips.get(notice1).y);
-            double[] result = {fingerTips.get(notice1).x, fingerTips.get(notice1).y};
-            return result;
+            return new double[]{fingerTips.get(notice1).x, fingerTips.get(notice1).y};
         } else {
             logger.info("未找到指尖");
             return new double[0];
@@ -225,21 +219,18 @@ public class DataUtils {
                     if (distance < min) {
                         min = distance;
                         cnt = i;
-                        continue;
                     }
                 } else if (px < left) {
                     distance = Math.pow((px - left), 2) + Math.pow((py - top - height), 2);
                     if (distance < min) {
                         min = distance;
                         cnt = i;
-                        continue;
                     }
                 } else {
                     distance = Math.pow((py - top - height), 2);
                     if (distance < min) {
                         min = distance;
                         cnt = i;
-                        continue;
                     }
                 }
             } else if (top > py) {
@@ -248,21 +239,18 @@ public class DataUtils {
                     if (distance < min) {
                         min = distance;
                         cnt = i;
-                        continue;
                     }
                 } else if (px < left) {
                     distance = Math.pow((px - left), 2) + Math.pow((py - top), 2);
                     if (distance < min) {
                         min = distance;
                         cnt = i;
-                        continue;
                     }
                 } else {
                     distance = Math.pow((py - top), 2);
                     if (distance < min) {
                         min = distance;
                         cnt = i;
-                        continue;
                     }
                 }
             } else {
@@ -271,14 +259,12 @@ public class DataUtils {
                     if (distance < min) {
                         min = distance;
                         cnt = i;
-                        continue;
                     }
                 } else {
                     distance = Math.pow((px - left), 2);
                     if (distance < min) {
                         min = distance;
                         cnt = i;
-                        continue;
                     }
                 }
             }

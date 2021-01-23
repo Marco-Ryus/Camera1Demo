@@ -4,14 +4,12 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Matrix;
+
 import android.os.Bundle;
 import android.os.Environment;
+import android.util.Log;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
-
-import java.io.File;
 
 public class ImageShow extends AppCompatActivity {
     public ImageView imageView;
@@ -22,8 +20,10 @@ public class ImageShow extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_image_show);
+
         imageView = findViewById(R.id.show_image);
         textView = findViewById(R.id.result);
+
         Bundle bundle = getIntent().getExtras();
         result = bundle.getString("result");
         String[] locations = bundle.getStringArray("location");
@@ -34,12 +34,14 @@ public class ImageShow extends AppCompatActivity {
             int width = Integer.parseInt(locations[2]);
             int height = Integer.parseInt(locations[3]);
             bitmap = Bitmap.createBitmap(bitmap, left,top, width, height);
-            textView.setText("无识别结果");
-        }
-
-        imageView.setImageBitmap(bitmap);
-        if(result!=null){
             textView.setText(result);
+            int i = MainActivity.mSpeechSynthesizer.speak(result);
+            Log.e("ImageShow", String.valueOf(i));
+        } else {
+            textView.setText("无识别结果");
+            int i = MainActivity.mSpeechSynthesizer.speak("无识别结果");
+            Log.e("ImageShow", String.valueOf(i));
         }
+        imageView.setImageBitmap(bitmap);
     }
 }
