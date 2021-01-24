@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">指尖文字识别</string>
     <string name="take_photo">拍照</string>
+    <string name="show_finger">展示指尖识别结果</string>
+    <string name="image_info">此处是识别出的文字区域</string>
+    <string name="back_camera">重新拍摄</string>
 </resources>

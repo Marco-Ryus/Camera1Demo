@@ -1,9 +1,11 @@
 package com.example.camera1demo;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -11,9 +13,12 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
+import android.graphics.Rect;
 import android.hardware.Camera;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -42,6 +47,8 @@ import org.opencv.android.OpenCVLoader;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static java.lang.Math.abs;
 
@@ -74,23 +81,101 @@ public class MainActivity extends AppCompatActivity{
                 Manifest.permission.ACCESS_WIFI_STATE,
                 Manifest.permission.CHANGE_WIFI_STATE
     };
+    Camera.PictureCallback pictureCallback = new Camera.PictureCallback() {
+        @Override
+        public void onPictureTaken(byte[] data, Camera camera) {
+//            Log.d(TAG, "生成bitmap");
+            Bitmap resource = BitmapFactory.decodeByteArray(data, 0, data.length);
+            resource = resource.copy(Bitmap.Config.ARGB_4444, true);
+            if (resource == null) {
+//                Toast.makeText(MainActivity.this, "拍照失败", Toast.LENGTH_SHORT).show();
+            }
+            //矩阵
+            final Matrix matrix = new Matrix();
+            matrix.setRotate(90);   //用于旋转，否则最终拍照效果会旋转90度；
+            final Bitmap bitmap = Bitmap.createBitmap(resource, 0, 0, resource.getWidth(),
+                    resource.getHeight(), matrix, true);
+            resource.recycle();
+            if (bitmap != null) {
+                camera.stopPreview();
+//                Log.d(TAG, "生成成功");
+//                Toast.makeText(MainActivity.this, "拍照成功", Toast.LENGTH_SHORT).show();
+                Text(DataUtils.getFile(bitmap,"/result.jpg"));
+                bitmap.recycle();
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         // 动态权限检查
-        if (!isRequiredPermissionsGranted() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        if(!isRequiredPermissionsGranted() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             //以下是AppCompat的一个方法，输入需要申请的权限的字符数组，会自动调用函数弹窗询问用户是否允许权限使用；
             requestPermissions(REQUIRED_PERMISSIONS, REQUEST_PERMISSIONS_CODE);
         }
+        while(!isRequiredPermissionsGranted()){};
         setContentView(R.layout.activity_main);
-        bundle = new Bundle();
-        progressDialog = new ProgressDialog(MainActivity.this);
-        progressDialog.setMessage("Loading...");
-        progressDialog.setTitle("正在识别，请稍等......");
-        progressDialog.setCancelable(true);
         initBaidu();
         initView();
+    }
+
+    /**
+     * 判断我们需要的权限是否被授予，只要有一个没有授权，我们都会返回 false。
+     *
+     * @return true 权限都被授权
+     */
+    private boolean isRequiredPermissionsGranted() {
+        for (String permission : REQUIRED_PERMISSIONS) {
+            if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_DENIED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode == 1) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+            } else {
+                Toast.makeText(this, "拒绝授权将无法使用本软件", Toast.LENGTH_LONG).show();
+            }
+        }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
+    //动态加载opencv库
+    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
+        @Override
+        public void onManagerConnected(int status) {
+            switch (status) {
+                case LoaderCallbackInterface.SUCCESS: {
+//                    Log.i(TAG, "OpenCV loaded successfully");
+//                    mOpenCvCameraView.enableView();
+//                    mOpenCvCameraView.setOnTouchListener(ColorBlobDetectionActivity.this);
+                }
+                break;
+                default: {
+                    super.onManagerConnected(status);
+                }
+                break;
+            }
+        }
+    };
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        //动态加载opencv库
+        if (!OpenCVLoader.initDebug()) {
+//            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization");
+            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_0_0, this, mLoaderCallback);
+        } else {
+//            Log.d(TAG, "OpenCV library found inside package. Using it!");
+            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+        }
     }
 
     private void initBaidu() {
@@ -158,7 +243,6 @@ public class MainActivity extends AppCompatActivity{
         // 设置合成的语调，0-15 ，默认 5
         mSpeechSynthesizer.setParam(SpeechSynthesizer.PARAM_PITCH, "5");
     }
-
 
     //用于预测文字及其位置
     private void Text(final File file){
@@ -254,6 +338,11 @@ public class MainActivity extends AppCompatActivity{
 
     //初始化
     private void initView() {
+        bundle = new Bundle();
+        progressDialog = new ProgressDialog(MainActivity.this);
+        progressDialog.setMessage("Loading...");
+        progressDialog.setTitle("正在识别，请稍等......");
+        progressDialog.setCancelable(true);
         takePhoto = findViewById(R.id.take_photo);
 //        iv_show = findViewById(R.id.image_show);
         mSurfaceView = findViewById(R.id.photo_preview);
@@ -271,7 +360,32 @@ public class MainActivity extends AppCompatActivity{
             public void surfaceCreated(SurfaceHolder holder) {
                 //初始化Camera
                 initCamera();
+                mSurfaceView.setOnTouchListener(new View.OnTouchListener() {
+                    @SuppressLint("ClickableViewAccessibility")
+                    @Override
+                    public boolean onTouch(View v, MotionEvent event) {
+                        return manualFocuse(event);
+                    }
+                });
 //                Log.d(TAG, "SurfaceView已生成");
+                //设置点击监听
+                takePhoto.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        camera.takePicture(new Camera.ShutterCallback() {
+                            @Override
+                            public void onShutter() {       //快门按下一瞬间会发生的操作
+                                progressDialog.show();
+                            }
+                        }, new Camera.PictureCallback() {
+                            @Override
+                            public void onPictureTaken(byte[] data, Camera camera) {
+
+                            }
+                        },pictureCallback);
+//                takePhoto.setVisibility(View.GONE);
+                    }
+                });
             }
 
             @Override
@@ -291,24 +405,7 @@ public class MainActivity extends AppCompatActivity{
                 }
             }
         });
-        //设置点击监听
-        takePhoto.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                camera.takePicture(new Camera.ShutterCallback() {
-                    @Override
-                    public void onShutter() {       //快门按下一瞬间会发生的操作
-                        progressDialog.show();
-                    }
-                }, new Camera.PictureCallback() {
-                    @Override
-                    public void onPictureTaken(byte[] data, Camera camera) {
 
-                    }
-                },pictureCallback);
-//                takePhoto.setVisibility(View.GONE);
-            }
-        });
     }
     private void initCamera() {
         //开启
@@ -317,7 +414,7 @@ public class MainActivity extends AppCompatActivity{
         camera.setDisplayOrientation(90);   //相对于预览画面而言，否则预览画面会是外的
         if (camera != null) {
             try {
-                Camera.Parameters parameters = camera.getParameters();
+                final Camera.Parameters parameters = camera.getParameters();
                 //设置预览照片的大小
                 parameters.setPreviewFpsRange(viewWidth, viewHeight);
                 //设置相机预览照片帧数
@@ -327,86 +424,121 @@ public class MainActivity extends AppCompatActivity{
                 //图片质量
                 parameters.set("jpeg-quality", 90);
                 //设置自动对焦
-                parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+//                parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+                /*mSurfaceView.setOnTouchListener(new View.OnTouchListener() {
+                    @Override
+                    public boolean onTouch(View v, MotionEvent event) {
+                        int x = (int) (event.getX() / mSurfaceView.getWidth() * 2000) - 1000; // 获取映射区域的X坐标
+                        int y = (int) (event.getY() / mSurfaceView.getWidth() * 2000) - 1000; // 获取映射区域的Y坐标
+                        Log.e(TAG, "x:" + x + "y" + y);
+                        // 创建Rect区域
+                        Rect focusArea = new Rect();
+                        focusArea.left = Math.max(x - 100, -1000); // 取最大或最小值，避免范围溢出屏幕坐标
+                        focusArea.top = Math.max(y - 100, -1000);
+                        focusArea.right = Math.min(x + 100, 1000);
+                        focusArea.bottom = Math.min(y + 100, 1000);
+                        // 创建Camera.Area
+                        Camera.Area cameraArea = new Camera.Area(focusArea, 1000);
+                        List<Camera.Area> meteringAreas = new ArrayList<>();
+                        List<Camera.Area> focusAreas = new ArrayList<>();
+                        if (parameters.getMaxNumMeteringAreas() > 0) {
+                            meteringAreas.add(cameraArea);
+                            focusAreas.add(cameraArea);
+                        }
+                        parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO); // 设置对焦模式
+                        parameters.setFocusAreas(focusAreas); // 设置对焦区域
+                        parameters.setMeteringAreas(meteringAreas); // 设置测光区域
+                        try {
+                            camera.cancelAutoFocus(); // 每次对焦前，需要先取消对焦
+                            camera.setParameters(parameters); // 设置相机参数
+                            camera.autoFocus(new Camera.AutoFocusCallback() {
+                                @Override
+                                public void onAutoFocus(boolean success, Camera camera) {
+
+                                }
+                            }); // 开启对焦
+                        } catch (Exception e) {
+                        }
+                        return false;
+                    }
+                });*/
                 //设置照片的大小
                 parameters.setPictureSize(viewWidth, viewHeight);
+                camera.cancelAutoFocus();
                 //通过SurfaceView显示预览
                 camera.setPreviewDisplay(mSurfaceHolder);
                 //开始预览
                 camera.startPreview();
+
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
-    Camera.PictureCallback pictureCallback = new Camera.PictureCallback() {
-        @Override
-        public void onPictureTaken(byte[] data, Camera camera) {
-//            Log.d(TAG, "生成bitmap");
-            Bitmap resource = BitmapFactory.decodeByteArray(data, 0, data.length);
-            resource = resource.copy(Bitmap.Config.ARGB_4444, true);
-            if (resource == null) {
-//                Toast.makeText(MainActivity.this, "拍照失败", Toast.LENGTH_SHORT).show();
-            }
-            //矩阵
-            final Matrix matrix = new Matrix();
-            matrix.setRotate(90);   //用于旋转，否则最终拍照效果会旋转90度；
-            final Bitmap bitmap = Bitmap.createBitmap(resource, 0, 0, resource.getWidth(),
-                    resource.getHeight(), matrix, true);
-            resource.recycle();
-            if (bitmap != null) {
-                camera.stopPreview();
-//                Log.d(TAG, "生成成功");
-//                Toast.makeText(MainActivity.this, "拍照成功", Toast.LENGTH_SHORT).show();
-                Text(DataUtils.getFile(bitmap));
-                bitmap.recycle();
+
+    public static final int FOCUS_METERING_AREA_WEIGHT_DEFAULT = 1000;
+    public static final int FOCUS_AREA_SIZE_DEFAULT = 300;
+
+    private boolean manualFocuse( MotionEvent event) {
+        if (camera != null) {
+            Camera.Parameters parameters = camera.getParameters();
+            String focusMode = parameters.getFocusMode();
+            Rect rect = calculateFocusArea(event.getX(), event.getY());
+            List<Camera.Area> meteringAreas = new ArrayList<>();
+            meteringAreas.add(new Camera.Area(rect, FOCUS_METERING_AREA_WEIGHT_DEFAULT));
+
+            if (parameters.getMaxNumFocusAreas() != 0 && focusMode != null &&
+                    (focusMode.equals(Camera.Parameters.FOCUS_MODE_AUTO) ||
+                            focusMode.equals(Camera.Parameters.FOCUS_MODE_MACRO) ||
+                            focusMode.equals(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE) ||
+                            focusMode.equals(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO))
+            ) {
+                if(!parameters.getSupportedFocusModes().contains(Camera.Parameters.FOCUS_MODE_AUTO)) {
+                    return false; //cannot autoFocus
+                }
+                parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+                parameters.setFocusAreas(meteringAreas);
+                if (parameters.getMaxNumMeteringAreas() > 0) {
+                    parameters.setMeteringAreas(meteringAreas);
+                }
+                Log.e(TAG, "执行到手动对焦");
+                camera.setParameters(parameters);
+            } else if (parameters.getMaxNumMeteringAreas() > 0) {
+                if(!parameters.getSupportedFocusModes().contains(Camera.Parameters.FOCUS_MODE_AUTO)) {
+                    return false; //cannot autoFocus
+                }
+                camera.setParameters(parameters);
+
+            } else {
             }
         }
-    };
+        return false;
+    }
 
-    //动态加载opencv库
-    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
-        @Override
-        public void onManagerConnected(int status) {
-            switch (status) {
-                case LoaderCallbackInterface.SUCCESS: {
-//                    Log.i(TAG, "OpenCV loaded successfully");
-//                    mOpenCvCameraView.enableView();
-//                    mOpenCvCameraView.setOnTouchListener(ColorBlobDetectionActivity.this);
-                }
-                break;
-                default: {
-                    super.onManagerConnected(status);
-                }
-                break;
+    private Rect calculateFocusArea(float x, float y) {
+        int buffer = FOCUS_AREA_SIZE_DEFAULT / 2;
+        int centerX = calculateCenter(x, mSurfaceView.getWidth(), buffer);
+        int centerY = calculateCenter(y, mSurfaceView.getHeight(), buffer);
+        return new Rect(
+                centerX - buffer,
+                centerY - buffer,
+                centerX + buffer,
+                centerY + buffer
+        );
+    }
+
+    private static int calculateCenter(float coord, int dimen, int buffer) {
+        int normalized = (int) ((coord / dimen) * 2000 - 1000);
+        if (Math.abs(normalized) + buffer > 1000) {
+            if (normalized > 0) {
+                return 1000 - buffer;
+            } else {
+                return -1000 + buffer;
             }
-        }
-    };
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        //动态加载opencv库
-        if (!OpenCVLoader.initDebug()) {
-//            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization");
-            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_0_0, this, mLoaderCallback);
         } else {
-//            Log.d(TAG, "OpenCV library found inside package. Using it!");
-            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+            return normalized;
         }
     }
 
-    /**
-     * 判断我们需要的权限是否被授予，只要有一个没有授权，我们都会返回 false。
-     *
-     * @return true 权限都被授权
-     */
-    private boolean isRequiredPermissionsGranted() {
-        for (String permission : REQUIRED_PERMISSIONS) {
-            if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_DENIED) {
-                return false;
-            }
-        }
-        return true;
-    }
+
 }

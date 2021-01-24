@@ -2,6 +2,7 @@ package com.example.camera1demo.util;
 
 import android.graphics.Bitmap;
 import android.os.Environment;
+import android.util.Log;
 
 import org.opencv.android.Utils;
 import org.opencv.core.Core;
@@ -42,10 +43,10 @@ public class DataUtils {
     private static final int tmp = 0;
 
     //封装方法将bitmap转化为file
-    public static File getFile(Bitmap bitmap) {
+    public static File getFile(Bitmap bitmap, String path) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         bitmap.compress(Bitmap.CompressFormat.JPEG, 50, baos);
-        File file = new File(Environment.getExternalStorageDirectory() + "/temp.jpg");
+        File file = new File(Environment.getExternalStorageDirectory() + path);
         try {
             file.createNewFile();
             FileOutputStream fos = new FileOutputStream(file);
@@ -166,12 +167,11 @@ public class DataUtils {
                 }
                 fingerTips.add(a[notice]);
 //                circle(dst, a[notice], 6, new Scalar(255, 255, 255), -1);   //绘制指尖
-                circle(mat_src, a[notice], 10, new Scalar(0, 255, 0), -1);//用绿色圈描绘可能为指尖的点
+//                circle(mat_src, a[notice], 10, new Scalar(0, 255, 0), -1);//用绿色圈描绘可能为指尖的点
 //                line(dst, center, a[notice], new Scalar(0, 255, 255), 5);
             }
         }
         double dist1;
-//        Log.v(TAG,fingerTips.get(0).toString());
 
         if (fingerTips.size() > 0 && !fingerTips.get(0).toString().isEmpty()) {
             double min = fingerTips.get(0).y;
@@ -185,6 +185,9 @@ public class DataUtils {
             }
             circle(mat_src, fingerTips.get(notice1), 10, new Scalar(255, 0, 0), -1);//绘制最终粉色点为指尖
             logger.info(fingerTips.get(notice1).x + "指尖坐标y: " + fingerTips.get(notice1).y);
+            Bitmap bmp_gray = Bitmap.createBitmap(mat_gray.cols(), mat_gray.rows(), Bitmap.Config.ARGB_8888);
+            Utils.matToBitmap(mat_src, bmp_gray);
+            getFile(bmp_gray, "/finger.jpg");
             return new double[]{fingerTips.get(notice1).x, fingerTips.get(notice1).y};
         } else {
             logger.info("未找到指尖");
@@ -269,6 +272,10 @@ public class DataUtils {
                 }
             }
         }
+/*        logger.info("min:"+min);
+        if (min > 1000){
+            return -1;
+        }*/
         return cnt;
     }
 }

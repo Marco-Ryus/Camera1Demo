@@ -3,13 +3,15 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+
     <TextView
         android:id="@+id/result"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_marginBottom="20dp"
-        android:textSize="50sp"/>
+        android:textSize="50sp"
+        />
 
     <ImageView
         android:id="@+id/show_image"
@@ -17,5 +19,36 @@
         android:layout_height="match_parent"
         android:layout_marginTop="20dp"
         android:layout_above="@+id/result"
+        android:contentDescription="@string/image_info" />
+
+    <Button
+        android:id="@+id/show_finger"
+        android:layout_width="wrap_content"
+        android:text="@string/show_finger"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="20dp"
+        android:background="@drawable/button_circle"
+        android:textSize="12sp"
         />
+    <Button
+        android:id="@+id/re_take_photo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20sp"
+        android:layout_marginTop="20sp"
+        android:layout_alignParentStart="true"
+        android:text="@string/back_camera"
+        android:textSize="12sp"
+        android:background="@drawable/button_circle"
+        />
+
+
+    <FrameLayout
+        android:id="@+id/finger_layout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        />
+
 </RelativeLayout>
