@@ -22,13 +22,31 @@ import com.example.camera1demo.R;
  * @Description : 文件描述
  */
 public class FingerFragment extends Fragment {
-    private ImageView imageView;
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.finger_fragment, container, false);
-        Bitmap bitmap = BitmapFactory.decodeFile(Environment.getExternalStorageDirectory()+"/finger.jpg");
-        imageView = view.findViewById(R.id.finger_result);
+        ImageView imageView = view.findViewById(R.id.finger_result);
+        int reqWidth = 1000;
+        int reqHeight = 1000;
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        Bitmap bitmap = BitmapFactory.decodeFile(Environment.getExternalStorageDirectory() + "/finger.jpg", options);
+        int width = options.outWidth;
+        int height = options.outHeight;
+        int inSampleSize = 1;
+        if (height > reqHeight || width > reqWidth) {
+            final int halfHeight = height / 2;
+            final int halfWidth = width / 2;
+
+            while ((halfHeight / inSampleSize) >= reqHeight
+                    && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
+            }
+        }
+        options.inSampleSize = inSampleSize;
+        options.inJustDecodeBounds = false;
+        bitmap = BitmapFactory.decodeFile(Environment.getExternalStorageDirectory() + "/finger.jpg", options);
         imageView.setImageBitmap(bitmap);
         return view;
     }

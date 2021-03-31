@@ -45,21 +45,19 @@ public class ImageShow extends AppCompatActivity implements View.OnClickListener
 
         Bundle bundle = getIntent().getExtras();
         result = bundle.getString("result");
-        String[] locations = bundle.getStringArray("location");
+        int[] locations = bundle.getIntArray("location");
         Bitmap bitmap = BitmapFactory.decodeFile(Environment.getExternalStorageDirectory()+"/result.jpg");
         if (result!=null) {
-            int top = Integer.parseInt(locations[0]);
-            int left = Integer.parseInt(locations[1]);
-            int width = Integer.parseInt(locations[2]);
-            int height = Integer.parseInt(locations[3]);
+            int top = locations[0];
+            int left = locations[1];
+            int width = locations[2];
+            int height = locations[3];
             bitmap = Bitmap.createBitmap(bitmap, left,top, width, height);
             textView.setText(result);
             int i = MainActivity.mSpeechSynthesizer.speak(result);
-            Log.e("ImageShow", String.valueOf(i));
         } else {
             textView.setText("无识别结果");
             int i = MainActivity.mSpeechSynthesizer.speak("无识别结果");
-            Log.e("ImageShow", String.valueOf(i));
         }
         imageView.setImageBitmap(bitmap);
     }
@@ -79,8 +77,6 @@ public class ImageShow extends AppCompatActivity implements View.OnClickListener
     }
 
     private void reTakePhoto() {
-//        Intent intent = new Intent(ImageShow.this, MainActivity.class);
-//        startActivity(intent);
         finish();
     }
 

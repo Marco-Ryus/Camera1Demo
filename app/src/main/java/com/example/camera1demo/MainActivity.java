@@ -37,7 +37,9 @@ import com.baidu.tts.client.SpeechError;
 import com.baidu.tts.client.SpeechSynthesizer;
 import com.baidu.tts.client.SpeechSynthesizerListener;
 import com.baidu.tts.client.TtsMode;
+import com.example.camera1demo.gson.Bean;
 import com.example.camera1demo.util.DataUtils;
+import com.google.gson.Gson;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -52,14 +54,9 @@ import java.util.List;
 
 import static java.lang.Math.abs;
 
-/*
-    要在Android中调用相机功能，一是调用系统相机，二是利用Camera与SurfaceView进行处理
-    因为现在其实现在好像已经出到CameraX，还有Camera2，但因为Camera2的配置比较复杂而且对不同机型适配不同，
-    这里介绍比较简单的Camera1，算是一个入门的操作，之后再去涉及其他camera都会容易些,但是因为Camera1的版本
-    比较久远，很多方法会被AS认为需要淘汰更新，因此会被划上横线
- */
 
 public class MainActivity extends AppCompatActivity{
+
     private static final String TAG = "MainActivity";
     private Button takePhoto;
     private SurfaceView mSurfaceView;
@@ -69,6 +66,7 @@ public class MainActivity extends AppCompatActivity{
     private ProgressDialog progressDialog;  //用于匹配图片时提醒用户等待
     private int viewWidth, viewHeight;
     public static SpeechSynthesizer mSpeechSynthesizer = SpeechSynthesizer.getInstance();
+
     //用于申请权限
     private static final int REQUEST_PERMISSIONS_CODE = 1;
     private static final String[] REQUIRED_PERMISSIONS = {
@@ -81,14 +79,14 @@ public class MainActivity extends AppCompatActivity{
                 Manifest.permission.ACCESS_WIFI_STATE,
                 Manifest.permission.CHANGE_WIFI_STATE
     };
+
     Camera.PictureCallback pictureCallback = new Camera.PictureCallback() {
         @Override
         public void onPictureTaken(byte[] data, Camera camera) {
-//            Log.d(TAG, "生成bitmap");
             Bitmap resource = BitmapFactory.decodeByteArray(data, 0, data.length);
             resource = resource.copy(Bitmap.Config.ARGB_4444, true);
             if (resource == null) {
-//                Toast.makeText(MainActivity.this, "拍照失败", Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, "拍照失败", Toast.LENGTH_SHORT).show();
             }
             //矩阵
             final Matrix matrix = new Matrix();
@@ -98,7 +96,6 @@ public class MainActivity extends AppCompatActivity{
             resource.recycle();
             if (bitmap != null) {
                 camera.stopPreview();
-//                Log.d(TAG, "生成成功");
 //                Toast.makeText(MainActivity.this, "拍照成功", Toast.LENGTH_SHORT).show();
                 Text(DataUtils.getFile(bitmap,"/result.jpg"));
                 bitmap.recycle();
@@ -152,9 +149,7 @@ public class MainActivity extends AppCompatActivity{
         public void onManagerConnected(int status) {
             switch (status) {
                 case LoaderCallbackInterface.SUCCESS: {
-//                    Log.i(TAG, "OpenCV loaded successfully");
-//                    mOpenCvCameraView.enableView();
-//                    mOpenCvCameraView.setOnTouchListener(ColorBlobDetectionActivity.this);
+                    Log.i(TAG, "OpenCV loaded successfully");
                 }
                 break;
                 default: {
@@ -170,10 +165,8 @@ public class MainActivity extends AppCompatActivity{
         super.onResume();
         //动态加载opencv库
         if (!OpenCVLoader.initDebug()) {
-//            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization");
             OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_0_0, this, mLoaderCallback);
         } else {
-//            Log.d(TAG, "OpenCV library found inside package. Using it!");
             mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
         }
     }
@@ -182,14 +175,14 @@ public class MainActivity extends AppCompatActivity{
         //初始化ocr
         OCR.getInstance(MainActivity.this).initAccessTokenWithAkSk(new OnResultListener<AccessToken>() {
             @Override
-            public void onResult(AccessToken result) { // 调用成功，返回AccessToken对象
+            public void onResult(AccessToken result) {
+                // 调用成功，返回AccessToken对象
                 String token = result.getAccessToken();
-//                Log.e(TAG, "初始化Access成功");
             }
 
             @Override
-            public void onError(OCRError error) { // 调用失败，返回OCRError子类SDKError对象
-//                Log.e(TAG, "初始化Access失败");
+            public void onError(OCRError error) {
+                // 调用失败，返回OCRError子类SDKError对象
             }
         }, getApplicationContext(), "Bc1oC0mlhLuGjU3tCFW63DBv", "1zGwRnUhDh5F1MGMLj3BZUjmWCpRq78R");
 
@@ -235,7 +228,7 @@ public class MainActivity extends AppCompatActivity{
         mSpeechSynthesizer.setApiKey("7fCouzZzRgfvszB1aDXDz2ly", "KEYrjowmQFvv5RWbhXNYzc5bh8E3uL5m"/*这里只是为了让Demo正常运行使用APIKey,请替换成自己的APIKey*/);
         mSpeechSynthesizer.initTts(TtsMode.ONLINE);
         // 设置在线发声音人： 0 普通女声（默认） 1 普通男声  3 情感男声<度逍遥> 4 情感儿童声<度丫丫>
-        mSpeechSynthesizer.setParam(SpeechSynthesizer.PARAM_SPEAKER, "1");
+        mSpeechSynthesizer.setParam(SpeechSynthesizer.PARAM_SPEAKER, "3");
         // 设置合成的音量，0-15 ，默认 5
         mSpeechSynthesizer.setParam(SpeechSynthesizer.PARAM_VOLUME, "15");
         // 设置合成的语速，0-15 ，默认 5
@@ -254,32 +247,21 @@ public class MainActivity extends AppCompatActivity{
             param.setImageFile(file);
 //        Log.d(TAG, "运行到setImage");
             // 调用通用文字识别服务（含位置信息版）
-            OCR.getInstance(MainActivity.this).recognizeGeneral(param, new OnResultListener<GeneralResult>() {
+                OCR.getInstance(MainActivity.this).recognizeGeneral(param, new OnResultListener<GeneralResult>() {
                         @Override
                         public void onResult(GeneralResult result) {
-                            StringBuilder sb = new StringBuilder();
-                            Word word;
-                            for (WordSimple wordSimple : result.getWordList()) {
-                                // word包含位置
-                                word = (Word) wordSimple;
-                                sb.append(word.getWords());
-                                sb.append(word.getLocation().toString());
-                                sb.append("\n");
-                            }
                             // 调用成功，返回GeneralResult对象，通过getJsonRes方法获取API返回字符串
                             String jsonRes = result.getJsonRes();
-                            String[][] res = parseJSON(jsonRes);//处理返回的json，返回文字的位置信息
-//                            DataPro dataPro = new DataPro();
-//                            dataPro.setData(res).setFile(file);
-//                            String[] finalRes = dataPro.processData();
-                            int i = DataUtils.prePocessText(point, res);
+                            Bean bean = new Gson().fromJson(jsonRes, Bean.class);
+                            Bean.WordResult[] words_result = bean.getWords_result();
+                            int i = DataUtils.prePocessText(point, words_result);
                             if(i!=-1){
-                                String[] finalRes = res[i];
-                                Toast.makeText(MainActivity.this, "识别结果：" + finalRes[4], Toast.LENGTH_LONG).show();
-                                bundle.putString("result", finalRes[4]);
-                                bundle.putStringArray("location", finalRes);
+                                bundle.putString("result",words_result[i].getWords());
+                                Bean.MyLocation location = words_result[i].getLocation();
+                                int[] res = new int[]{location.getTop(), location.getLeft(), location.getWidth(), location.getHeight()};
+                                bundle.putIntArray("location", res);
                             } else {
-                                Toast.makeText(MainActivity.this, "无匹配结果", Toast.LENGTH_LONG).show();
+//                                Toast.makeText(MainActivity.this, "无匹配结果", Toast.LENGTH_LONG).show();
                                 bundle.putString("result", null);
                             }
                             Intent intent = new Intent(MainActivity.this, ImageShow.class);
@@ -383,9 +365,9 @@ public class MainActivity extends AppCompatActivity{
 
                             }
                         },pictureCallback);
-//                takePhoto.setVisibility(View.GONE);
                     }
                 });
+                mSpeechSynthesizer.speak("请将手指指向文字识别区域进行拍摄");
             }
 
             @Override
@@ -395,8 +377,7 @@ public class MainActivity extends AppCompatActivity{
 
             @Override
             public void surfaceDestroyed(SurfaceHolder holder) {
-                //销毁，释放资源
-//                Log.d(TAG, "SurfaceView已被销毁");
+                // 销毁，释放资源
                 if (camera != null) {
                     camera.stopPreview();
                     camera.setPreviewCallback(null);
@@ -424,44 +405,7 @@ public class MainActivity extends AppCompatActivity{
                 //图片质量
                 parameters.set("jpeg-quality", 90);
                 //设置自动对焦
-//                parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
-                /*mSurfaceView.setOnTouchListener(new View.OnTouchListener() {
-                    @Override
-                    public boolean onTouch(View v, MotionEvent event) {
-                        int x = (int) (event.getX() / mSurfaceView.getWidth() * 2000) - 1000; // 获取映射区域的X坐标
-                        int y = (int) (event.getY() / mSurfaceView.getWidth() * 2000) - 1000; // 获取映射区域的Y坐标
-                        Log.e(TAG, "x:" + x + "y" + y);
-                        // 创建Rect区域
-                        Rect focusArea = new Rect();
-                        focusArea.left = Math.max(x - 100, -1000); // 取最大或最小值，避免范围溢出屏幕坐标
-                        focusArea.top = Math.max(y - 100, -1000);
-                        focusArea.right = Math.min(x + 100, 1000);
-                        focusArea.bottom = Math.min(y + 100, 1000);
-                        // 创建Camera.Area
-                        Camera.Area cameraArea = new Camera.Area(focusArea, 1000);
-                        List<Camera.Area> meteringAreas = new ArrayList<>();
-                        List<Camera.Area> focusAreas = new ArrayList<>();
-                        if (parameters.getMaxNumMeteringAreas() > 0) {
-                            meteringAreas.add(cameraArea);
-                            focusAreas.add(cameraArea);
-                        }
-                        parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO); // 设置对焦模式
-                        parameters.setFocusAreas(focusAreas); // 设置对焦区域
-                        parameters.setMeteringAreas(meteringAreas); // 设置测光区域
-                        try {
-                            camera.cancelAutoFocus(); // 每次对焦前，需要先取消对焦
-                            camera.setParameters(parameters); // 设置相机参数
-                            camera.autoFocus(new Camera.AutoFocusCallback() {
-                                @Override
-                                public void onAutoFocus(boolean success, Camera camera) {
-
-                                }
-                            }); // 开启对焦
-                        } catch (Exception e) {
-                        }
-                        return false;
-                    }
-                });*/
+                parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
                 //设置照片的大小
                 parameters.setPictureSize(viewWidth, viewHeight);
                 camera.cancelAutoFocus();
@@ -501,7 +445,7 @@ public class MainActivity extends AppCompatActivity{
                 if (parameters.getMaxNumMeteringAreas() > 0) {
                     parameters.setMeteringAreas(meteringAreas);
                 }
-                Log.e(TAG, "执行到手动对焦");
+//                Log.e(TAG, "执行到手动对焦");
                 camera.setParameters(parameters);
             } else if (parameters.getMaxNumMeteringAreas() > 0) {
                 if(!parameters.getSupportedFocusModes().contains(Camera.Parameters.FOCUS_MODE_AUTO)) {

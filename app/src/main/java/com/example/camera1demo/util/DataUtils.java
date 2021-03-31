@@ -2,7 +2,8 @@ package com.example.camera1demo.util;
 
 import android.graphics.Bitmap;
 import android.os.Environment;
-import android.util.Log;
+
+import com.example.camera1demo.gson.Bean;
 
 import org.opencv.android.Utils;
 import org.opencv.core.Core;
@@ -83,6 +84,7 @@ public class DataUtils {
         Imgproc.medianBlur(frame, frame, 5);
         Imgproc.cvtColor(frame, frameHSV, Imgproc.COLOR_RGB2HSV, 3);//把frame的颜色空间转换后复制到frameHSV
         // 对HSV空间进行量化，得到二值图像，亮的部分为手的形状
+//        Core.inRange(frameHSV, new Scalar(5, 10, 20), new Scalar(20, 170, 256), mask);//比较三个通道中的元素是否在相应的区间类，不在的画的则改成255，即符合肤色的就转换为黑色
         Core.inRange(frameHSV, new Scalar(5, 10, 20), new Scalar(20, 170, 256), mask);//比较三个通道中的元素是否在相应的区间类，不在的画的则改成255，即符合肤色的就转换为黑色
 
         // 形态学操作，去除噪声，并使手的边界更加清晰
@@ -166,9 +168,6 @@ public class DataUtils {
                     }
                 }
                 fingerTips.add(a[notice]);
-//                circle(dst, a[notice], 6, new Scalar(255, 255, 255), -1);   //绘制指尖
-//                circle(mat_src, a[notice], 10, new Scalar(0, 255, 0), -1);//用绿色圈描绘可能为指尖的点
-//                line(dst, center, a[notice], new Scalar(0, 255, 255), 5);
             }
         }
         double dist1;
@@ -196,11 +195,11 @@ public class DataUtils {
     }
 
     //文字区域匹配
-    public static int prePocessText(double[] point, String[][] data) {
+    public static int prePocessText(double[] point, Bean.WordResult[] data) {
         double px = point[0], py = point[1];
         for (int i = 0; i < data.length; i++) {
             //将文字区域转换为int
-            int top = Integer.parseInt(data[i][0]), left = Integer.parseInt(data[i][1]), width = Integer.parseInt(data[i][2]), height = Integer.parseInt(data[i][3]);
+            int top = data[i].getLocation().getTop(), left = data[i].getLocation().getLeft(), width = data[i].getLocation().getWidth(), height = data[i].getLocation().getHeight();
             //手指完全在区域内
             if ((left - tmp) < px && px < (left + width + tmp)) {
                 if (top - tmp < py && py < top + height + tmp) {
@@ -213,9 +212,9 @@ public class DataUtils {
         double distance;
         //指尖坐标未找到与文字区域重合的，需要计算最短距离
         for (int i = 0; i < data.length; i++) {
-            int top = Integer.parseInt(data[i][0]), left = Integer.parseInt(data[i][1]), width = Integer.parseInt(data[i][2]), height = Integer.parseInt(data[i][3]);
+            int top = data[i].getLocation().getTop(), left = data[i].getLocation().getLeft(), width = data[i].getLocation().getWidth(), height = data[i].getLocation().getHeight();
             //先判断当前文字选框在指尖点上方还是下方
-            if (top + height > py) {
+            if (top + height < py) {
                 //判断当前文字选框是否在指尖完全左侧
                 if (px > left + width) {
                     distance = Math.pow((px - left - width), 2) + Math.pow((py - top - height), 2);
@@ -238,7 +237,7 @@ public class DataUtils {
                 }
             } else if (top > py) {
                 if (px > left + width) {
-                    distance = Math.pow((px - left - width), 2) + Math.pow((py - top - height), 2);
+                    distance = Math.pow((px - left - width), 2) + Math.pow((py - top), 2);
                     if (distance < min) {
                         min = distance;
                         cnt = i;
@@ -272,10 +271,6 @@ public class DataUtils {
                 }
             }
         }
-/*        logger.info("min:"+min);
-        if (min > 1000){
-            return -1;
-        }*/
         return cnt;
     }
 }
